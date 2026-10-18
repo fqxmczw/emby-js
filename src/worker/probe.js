@@ -563,7 +563,7 @@
       let s = cleanServers[0] || { ...server };
       const previousStatus = s.status;
       s.totalChecks = (s.totalChecks || 0) + 1;
-      s.history = this.normalizeHistory(s.history, s.lastCheck);
+      s.history = options.skipHistoryNormalization ? (Array.isArray(s.history) ? s.history : []) : this.normalizeHistory(s.history, s.lastCheck);
       const checkedAt = Date.now();
 
       const limitedMedia = Boolean(options.limitedMedia);
@@ -804,6 +804,7 @@
               flow: probeSource,
               logConfig: config,
               recordLatency: !scheduledStatusOnly,
+              skipHistoryNormalization: scheduledStatusOnly,
               skipMediaRefresh: scheduledStatusOnly
           });
       });
@@ -816,6 +817,49 @@
           if (server) probedById.set(server.id, server);
       }
       const latestConfig = await this.loadConfig(env, scheduledStatusOnly ? { skipHistoryNormalization: true } : {});
+      if (scheduledStatusOnly) {
+          const latestServers = Array.isArray(latestConfig.servers) ? latestConfig.servers : [];
+          const nextServers = latestServers.slice();
+          const nextCursor = batchEnd < totalServers ? batchEnd : 0;
+          const notifyQueue = [];
+          const telegramEnabled = this.isTelegramEnabled(env, latestConfig);
+
+          for (const [id, probed] of probedById) {
+              const index = latestServers.findIndex((server) => server.id === id);
+              if (index < 0 || probed.url !== latestServers[index].url) continue;
+
+              const previouslySaved = latestServers[index];
+              const mergedServer = this.mergeProbedRuntimeFields(previouslySaved, probed);
+              nextServers[index] = mergedServer;
+
+              if (telegramEnabled && mergedServer.status === 'offline' && this.shouldSendOfflineAlert(mergedServer)) {
+                  notifyQueue.push({ message: this.buildStatusMessage(mergedServer, previouslySaved.status, mergedServer.status), kind: 'offline', serverId: id, lastCheck: mergedServer.lastCheck });
+              } else if (telegramEnabled && previouslySaved.status === 'offline' && mergedServer.status === 'online' && previouslySaved.offlineAlertSentAt) {
+                  notifyQueue.push({ message: this.buildStatusMessage({ ...mergedServer, offlineSince: previouslySaved.offlineSince || mergedServer.offlineSince }, 'offline', 'online'), kind: 'online', serverId: id });
+              }
+          }
+
+          const sendResults = await Promise.all(notifyQueue.map((item) => this.sendTelegram(env, item.message, { ...latestConfig, servers: nextServers })));
+          for (const [index, ok] of sendResults.entries()) {
+              const item = notifyQueue[index];
+              if (!ok || !item) continue;
+              const serverIndex = nextServers.findIndex((server) => server.id === item.serverId);
+              if (serverIndex < 0) continue;
+              if (item.kind === 'offline') {
+                  nextServers[serverIndex] = { ...nextServers[serverIndex], offlineAlertSentAt: item.lastCheck };
+              }
+          }
+
+          const savedConfig = {
+              ...latestConfig,
+              servers: nextServers,
+              nextScheduledCursor: nextCursor,
+              updatedAt: Math.max(latestConfig.updatedAt || 0, Date.now())
+          };
+          await env.EMBY_DB.put('config', JSON.stringify(savedConfig));
+          return { ...savedConfig, nextCursor, hasMore: nextCursor !== 0 };
+      }
+
       const latestById = new Map();
       for (let index = 0; index < latestConfig.servers.length; index += 1) {
           const server = latestConfig.servers[index];

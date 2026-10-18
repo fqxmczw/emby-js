@@ -446,15 +446,7 @@
           const growthDayKey = this.getShanghaiDayKey(scheduledTime);
           await this.compactOversizedHistoriesIfNeeded(env);
           const config = await this.loadConfig(env, { skipHistoryNormalization: true });
-          const scheduledStartedAt = Date.now();
-          const scheduledWallLimitMs = 45 * 1000;
-          const scheduledMaxBatches = 32;
-          let statusUpdated = config;
-          for (let batchIndex = 0; batchIndex < scheduledMaxBatches; batchIndex += 1) {
-              statusUpdated = await this.runProbeLogic(env, statusUpdated, { source: 'scheduled', statusOnly: true });
-              if (!statusUpdated.hasMore) break;
-              if (Date.now() - scheduledStartedAt >= scheduledWallLimitMs) break;
-          }
+          let statusUpdated = await this.runProbeLogic(env, config, { source: 'scheduled', statusOnly: true });
           if (env && env.RUNTIME_ENV === 'docker') {
               const mediaUpdated = await this.refreshAllLastPlayedIfRequested(statusUpdated, { source: 'scheduled', env, scheduledTime });
               statusUpdated = await this.saveConfig(env, mediaUpdated, { skipHistoryNormalization: true });
