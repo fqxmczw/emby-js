@@ -4,7 +4,7 @@
  * 负责更新仓库默认值、历史保留长度、离线通知延迟和 App 图标 SVG。
  * 版本号和更新说明不要写在这里，统一由 `src/app-meta.json` 生成。
  */
-  UPDATE_REPO_OWNER: 'pototazhang',
+  UPDATE_REPO_OWNER: 'fqxmczw',
   UPDATE_REPO_NAME: 'emby-js',
   UPDATE_BRANCH: 'main',
   UPDATE_FILE: 'emby.js',
