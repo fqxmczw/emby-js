@@ -64,6 +64,7 @@ const workerFiles = [
   'auth.js',
   'updater.js',
   'config-store.js',
+  'd1-state.js',
   'utils.js',
   'logs.js',
   'url-safety.js',

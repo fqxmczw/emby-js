@@ -308,3 +308,13 @@ npm run start:docker-local
 其他业务环境变量如 `TG_BOT_TOKEN`、`TG_CHAT_ID` 仍可继续使用。纯 Docker 部署时通常不需要配置 `CF_ACCOUNT_ID`、`CF_WORKER_NAME`、`CF_API_TOKEN` 这类 Cloudflare Worker 专用变量。如果你要使用页面内的一键更新，必须额外挂载 `/var/run/docker.sock`，并保持 `DOCKER_UPDATE_IMAGE` 指向一个可拉取的新镜像。Docker 运行时只比较 Docker 通道版本，不会因为 Worker 通道发版而误报更新。
 
 如果你当前运行的是带旧版自更新逻辑的历史镜像，那么第一次需要手动 `docker pull` 并重新 `docker run` 或 `docker compose up -d` 到包含本修复的新镜像；从这一版开始，后续页面内一键更新才会正常完成容器替换。
+
+## Workers Free 增量状态存储（2026.11.19.1）
+
+节点或历史较多时可额外绑定 D1 `EMBY_STATE_DB`。保留原 `EMBY_DB` 绑定；没有 D1 绑定时维持原有 KV/Docker 路径。先执行 `scripts/d1-state-schema.sql`，从旧 KV config 导入 `emby_nodes(id, position, data)` 与 `emby_meta` 中的 config、scheduler，再启用绑定。禁止在尚未迁移的数据库上直接接管流量。
+
+定时任务只读取 4 个节点的无历史状态，在 D1 内追加并裁剪该节点历史；原 KV config 作为回滚快照保留。70 节点按每分钟一批轮询，一轮约 18 分钟。正常定时批次不写 KV，D1 每批约 4 个节点更新及少量元数据更新，远低于免费 D1 每日行写入限额；按实际 metrics 观察其他功能的额外开销。
+
+管理页面继续返回完整历史，但流式拼装 D1 已序列化的节点，避免在 Worker 内重建巨型 JSON。设置保存只传回轻量配置，历史由服务端保留。迁移/回滚前备份线上版本及全部绑定，勿用仓库 wrangler.toml 覆盖现有 Worker。
+
+验证：`npm test` 包含 70 节点、100800 条历史的真实 SQLite 回归，覆盖历史保留、游标、URL 更改竞态、防重入、失败重试及导入导出。Node 24+ 提供测试使用的内置 node:sqlite；无需新增运行依赖。

@@ -190,6 +190,7 @@
   },
 
   getRecentHistoryStats(server, windowMs = 24 * 60 * 60 * 1000) {
+      if (server._recentHistoryStats && windowMs === 24 * 60 * 60 * 1000) return server._recentHistoryStats;
       const since = Date.now() - windowMs;
       const history = Array.isArray(server.history) ? server.history.filter((item) => item && typeof item === 'object' && item.time && item.time >= since) : [];
       const stats = history.reduce((acc, item) => {

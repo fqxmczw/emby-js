@@ -6,6 +6,7 @@
  */
 const App = () => {
     const CONFIG_CACHE_KEY = 'emby_last_good_config';
+    const configStorageRef = useRef('kv');
     const readCachedConfig = () => {
         try {
             const raw = localStorage.getItem(CONFIG_CACHE_KEY);
@@ -193,6 +194,7 @@ const App = () => {
                 return;
             }
             const data = await res.json();
+            configStorageRef.current = data.storageMode || 'kv';
             if (options.skipDuringRefresh && isRefreshingRef.current) return;
             if (Array.isArray(data.servers)) {
                 if (data.servers.length === 0 && serversRef.current.length > 0 && !options.allowEmptyServers) {
@@ -311,7 +313,7 @@ const App = () => {
             const nextUpdatedAt = Date.now();
             setConfigUpdatedAt(nextUpdatedAt);
             configUpdatedAtRef.current = nextUpdatedAt;
-            const res = await apiFetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ servers: serversToSave, icons: iconsToSave, telegram: telegramToSave, logging: { enabled: loggingEnabled }, updatedAt: nextUpdatedAt, baseRevision }) });
+            const res = await apiFetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ servers: configStorageRef.current === 'd1' ? serversToSave.map(server => { const next = { ...server }; delete next.history; return next; }) : serversToSave, icons: iconsToSave, telegram: telegramToSave, logging: { enabled: loggingEnabled }, updatedAt: nextUpdatedAt, baseRevision }) });
             const saveResult = await res.json().catch(() => ({}));
             return { res, saveResult, nextUpdatedAt };
         };

@@ -107,10 +107,25 @@
       }
 
       try {
-          const latestSource = await this.fetchLatestWorkerSource(env);
-          const latestVersion = this.extractRuntimeVersion(latestSource, 'worker') || 'unknown';
+          let latestSource;
+          let latestVersion;
+          const repo = this.getUpdateRepo(env);
+          if (this.usesD1State(env) && repo.file === 'emby.js') {
+              const metaUrl = this.getUpdateRawUrl(env).replace(/\/emby\.js$/, '/src/app-meta.json');
+              const response = await fetch(metaUrl, { headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' } });
+              if (!response.ok) throw new Error('Update metadata HTTP ' + response.status);
+              const meta = await response.json();
+              latestVersion = String(meta.updateChannels && meta.updateChannels.worker || meta.version || 'unknown');
+          } else {
+              latestSource = await this.fetchLatestWorkerSource(env);
+              latestVersion = this.extractRuntimeVersion(latestSource, 'worker') || 'unknown';
+          }
           const updated = latestVersion !== 'unknown' && latestVersion !== currentVersion;
-          if (updated) await this.deployWorkerSource(env, latestSource);
+          if (updated) {
+              latestSource = latestSource || await this.fetchLatestWorkerSource(env);
+              if (this.extractRuntimeVersion(latestSource, 'worker') !== latestVersion) throw new Error('Update source and metadata disagree');
+              await this.deployWorkerSource(env, latestSource);
+          }
           try {
               const logConfig = await this.loadConfig(env);
               await this.appendRuntimeLog(env, 'info', updated ? 'update.auto.deploy.done' : 'update.auto.check.done', updated ? '定时自动更新部署完成' : '定时自动更新检查完成', {

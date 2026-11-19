@@ -47,7 +47,7 @@
       const tokenRecord = await this.getPublicShareToken(env, token);
       if (!tokenRecord || (Number(tokenRecord.expiresAt) > 0 && Number(tokenRecord.expiresAt) <= Date.now())) return new Response('Link expired', { status: 410, headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
       await this.recordPublicShareView(env, token, tokenRecord, request);
-      const config = await this.loadConfig(env);
+      const config = await this.loadConfig(env, { includeHistory: true });
       const ownerProfile = tokenRecord.telegramProfile || null;
       const publicPageState = {
           ownerProfile,
@@ -115,7 +115,7 @@
     if (cardMatch && request.method === 'GET') {
       const tokenRecord = await this.getCardShareToken(env, cardMatch[1]);
       if (!tokenRecord || tokenRecord.expiresAt <= Date.now()) return new Response('Link expired', { status: 410, headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
-      const config = await this.loadConfig(env);
+      const config = await this.loadConfig(env, { includeHistory: true });
       const clean = this.sanitizeConfig(config);
       const server = clean.servers.find((item) => String(item.id) === String(tokenRecord.serverId));
       if (!server) return new Response('Not Found', { status: 404 });
@@ -133,6 +133,7 @@
 
       try {
           if (request.method === 'GET') {
+              if (this.usesD1State(env)) return this.d1ConfigResponse(env);
               const config = await this.loadConfig(env);
               return this.json({ ...config, notifyEnabled: this.isTelegramEnabled(env, config), telegram: this.getTelegramConfig(env, config), logging: config.logging || { enabled: false }, publicShareBaseUrl: this.getPublicShareBaseUrl(env), publicShareWildcardDomain: this.getPublicShareWildcardDomain(env) });
           }
@@ -438,6 +439,11 @@
   },
 
   async scheduled(event, env, ctx) {
+      if (this.usesD1State(env)) {
+          ctx.waitUntil(this.runD1Scheduled(env).then(result => console.log(JSON.stringify({ event: 'probe.scheduled.done', ...result }))).catch(error => console.error(JSON.stringify({ event: 'probe.scheduled.error', error: error.message }))));
+          ctx.waitUntil(this.maybeRunScheduledSelfUpdate(env).catch(error => console.error('[scheduled] update failed:', error.message)));
+          return;
+      }
       ctx.waitUntil(this.maybeRunScheduledSelfUpdate(env).catch((e) => {
           console.log('[scheduled] auto update failed:', e && e.message ? e.message : String(e));
       }));

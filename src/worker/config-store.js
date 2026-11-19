@@ -9,6 +9,7 @@
   },
 
   async loadConfig(env, options = {}) {
+      if (this.usesD1State(env)) return this.loadD1Config(env, options);
       const raw = await env.EMBY_DB.get('config');
       if (!raw) return options.raw ? this.emptyConfig() : this.withRevision(this.emptyConfig(), options);
       try {
@@ -20,6 +21,7 @@
   },
 
   async saveConfig(env, config, options = {}) {
+      if (this.usesD1State(env)) return this.saveD1Config(env, config, options);
       if (options.raw) {
           const rawConfig = config && typeof config === 'object' ? config : this.emptyConfig();
           await env.EMBY_DB.put('config', JSON.stringify(rawConfig));
@@ -118,6 +120,7 @@
   },
 
   async compactOversizedHistoriesIfNeeded(env) {
+      if (this.usesD1State(env)) return null;
       if (!env || !env.EMBY_DB) return null;
       const markerValue = String(this.HISTORY_LIMIT);
       try {
@@ -201,6 +204,12 @@
 
   async exportKvSnapshot(env) {
       const entries = await this.listAllKvEntries(env);
+      if (this.usesD1State(env)) {
+          const config = await this.loadD1Config(env, { includeHistory: true });
+          const index = entries.findIndex(entry => entry.key === 'config');
+          const entry = { key: 'config', value: JSON.stringify(config), expiresAt: 0 };
+          if (index < 0) entries.push(entry); else entries[index] = entry;
+      }
       return {
           schema: 'emby-kv-snapshot',
           version: 1,
@@ -254,7 +263,8 @@
           const putOptions = entry.expiresAt
               ? { expirationTtl: Math.max(1, Math.ceil((entry.expiresAt - now) / 1000)) }
               : {};
-          await env.EMBY_DB.put(entry.key, entry.value, putOptions);
+          if (entry.key === 'config' && this.usesD1State(env)) await this.replaceD1Config(env, JSON.parse(entry.value));
+          else await env.EMBY_DB.put(entry.key, entry.value, putOptions);
           imported += 1;
       }
       return { ok: true, imported, skipped, total: entries.length, replaced: replace };

@@ -856,7 +856,8 @@
               nextScheduledCursor: nextCursor,
               updatedAt: Math.max(latestConfig.updatedAt || 0, Date.now())
           };
-          await env.EMBY_DB.put('config', JSON.stringify(savedConfig));
+          if (this.usesD1State(env)) await this.saveD1Config(env, savedConfig, { raw: true });
+          else await env.EMBY_DB.put('config', JSON.stringify(savedConfig));
           return { ...savedConfig, nextCursor, hasMore: nextCursor !== 0 };
       }
 

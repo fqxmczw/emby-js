@@ -1,0 +1,3 @@
+CREATE TABLE IF NOT EXISTS emby_meta (key TEXT PRIMARY KEY,value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS emby_nodes (id TEXT PRIMARY KEY,position INTEGER NOT NULL,data TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS emby_nodes_position ON emby_nodes(position);
