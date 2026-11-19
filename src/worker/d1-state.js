@@ -93,13 +93,13 @@
           const cursor = Number(JSON.parse(claim.value).cursor) || 0;
           const results = await db.batch([
               db.prepare("SELECT json_object('telegram',json_extract(value,'$.telegram'),'logging',json_extract(value,'$.logging')) AS value FROM emby_meta WHERE key='config'"),
-              db.prepare("SELECT json_remove(data,'$.history') AS data FROM emby_nodes ORDER BY position LIMIT 4 OFFSET ?").bind(cursor),
+              db.prepare("SELECT json_remove(data,'$.history') AS data FROM emby_nodes ORDER BY position LIMIT 2 OFFSET ?").bind(cursor),
               db.prepare('SELECT COUNT(*) AS count FROM emby_nodes')
           ]);
           const config = JSON.parse(results[0].results[0].value);
           const total = results[2].results[0].count;
           const targets = results[1].results.map(row => ({ ...JSON.parse(row.data), history: [] }));
-          const probed = await this.mapWithConcurrency(targets, 4, server => this.probeServerRuntimeState(env, server, false, { skipHistoryNormalization: true, skipMediaRefresh: true, recordLatency: false, flow: 'scheduled', logConfig: config }));
+          const probed = await this.mapWithConcurrency(targets, 2, server => this.probeServerRuntimeState(env, server, false, { skipHistoryNormalization: true, skipMediaRefresh: true, recordLatency: false, flow: 'scheduled', logConfig: config }));
           const statements = [];
           const notify = [];
           for (let i = 0; i < probed.length; i += 1) {
