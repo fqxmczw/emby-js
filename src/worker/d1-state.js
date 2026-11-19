@@ -60,14 +60,27 @@
   },
 
   async d1ConfigResponse(env) {
-      // D1 returns node JSON strings. Stream them without parsing/stringifying all histories in the Worker.
+      // Keep the frequently polled config small; complete histories use bounded pages below.
       const db = env.EMBY_STATE_DB;
-      const results = await db.batch([db.prepare("SELECT value FROM emby_meta WHERE key='config'"), db.prepare('SELECT data FROM emby_nodes ORDER BY position')]);
+      const results = await db.batch([db.prepare("SELECT value FROM emby_meta WHERE key='config'"), db.prepare("SELECT json_remove(data,'$.history') AS data FROM emby_nodes ORDER BY position")]);
       if (!results[0].results[0]) throw new Error('D1 state not initialized');
       const config = JSON.parse(results[0].results[0].value);
-      const header = { ...config, storageMode: 'd1', notifyEnabled: this.isTelegramEnabled(env, config), telegram: this.getTelegramConfig(env, config), publicShareBaseUrl: this.getPublicShareBaseUrl(env), publicShareWildcardDomain: this.getPublicShareWildcardDomain(env) };
+      const header = { ...config, storageMode: 'd1', historyMode: 'paged', notifyEnabled: this.isTelegramEnabled(env, config), telegram: this.getTelegramConfig(env, config), publicShareBaseUrl: this.getPublicShareBaseUrl(env), publicShareWildcardDomain: this.getPublicShareWildcardDomain(env) };
       const encoder = new TextEncoder();
       const chunks = [JSON.stringify(header).slice(0, -1) + ',"servers":[', ...results[1].results.map((row, i) => (i ? ',' : '') + row.data), ']}'];
+      return new Response(new ReadableStream({ pull(controller) { if (chunks.length) controller.enqueue(encoder.encode(chunks.shift())); else controller.close(); } }), { headers: { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-store' } });
+  },
+
+  async d1HistoryResponse(env, cursor) {
+      const results = await env.EMBY_STATE_DB.batch([
+          env.EMBY_STATE_DB.prepare("SELECT id,json_extract(data,'$.history') AS history,COALESCE(json_extract(data,'$.lastCheck'),0) AS lastCheck FROM emby_nodes ORDER BY position LIMIT 4 OFFSET ?").bind(cursor),
+          env.EMBY_STATE_DB.prepare('SELECT COUNT(*) AS count FROM emby_nodes')
+      ]);
+      const rows = results[0].results;
+      const total = results[1].results[0].count;
+      const nextCursor = cursor + rows.length < total ? cursor + rows.length : null;
+      const chunks = ['{"servers":[', ...rows.map((row, i) => (i ? ',' : '') + '{"id":' + JSON.stringify(row.id) + ',"lastCheck":' + Number(row.lastCheck) + ',"history":' + (row.history || '[]') + '}'), '],"nextCursor":' + JSON.stringify(nextCursor) + '}'];
+      const encoder = new TextEncoder();
       return new Response(new ReadableStream({ pull(controller) { if (chunks.length) controller.enqueue(encoder.encode(chunks.shift())); else controller.close(); } }), { headers: { 'Content-Type': 'application/json;charset=utf-8', 'Cache-Control': 'no-store' } });
   },
 

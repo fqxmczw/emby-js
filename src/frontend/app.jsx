@@ -7,6 +7,7 @@
 const App = () => {
     const CONFIG_CACHE_KEY = 'emby_last_good_config';
     const configStorageRef = useRef('kv');
+    const historyLoadingRef = useRef(false);
     const readCachedConfig = () => {
         try {
             const raw = localStorage.getItem(CONFIG_CACHE_KEY);
@@ -167,6 +168,30 @@ const App = () => {
         return { ...fallback, status: 'unknown', latency: 0 };
     };
 
+    const loadPagedHistories = async () => {
+        if (historyLoadingRef.current) return;
+        historyLoadingRef.current = true;
+        try {
+            let cursor = 0;
+            do {
+                const response = await apiFetchWithTimeout('/api/history?cursor=' + cursor, { cache: 'no-store' });
+                if (!response.ok) throw new Error('History HTTP ' + response.status);
+                const page = await response.json();
+                const byId = new Map(page.servers.map(server => [String(server.id), server]));
+                setServers(current => current.map(server => {
+                    const fresh = byId.get(String(server.id));
+                    return fresh && Number(fresh.lastCheck) >= Number(server.lastCheck || 0) ? { ...server, history: fresh.history } : server;
+                }));
+                cursor = page.nextCursor;
+            } while (cursor !== null);
+        } catch (error) {
+            console.error('历史读取失败', error);
+            showNotice('历史读取失败，稍后自动重试');
+        } finally {
+            historyLoadingRef.current = false;
+        }
+    };
+
     const fetchConfigData = async (options = {}) => {
         try {
             if (options.skipDuringRefresh && isRefreshingRef.current) return;
@@ -201,7 +226,8 @@ const App = () => {
                     showNotice('配置响应为空，已保留当前列表');
                     return;
                 }
-                setServers(data.servers);
+                const existing = new Map(serversRef.current.map(server => [String(server.id), server]));
+                setServers(data.historyMode === 'paged' ? data.servers.map(server => ({ ...server, history: existing.get(String(server.id))?.history || [] })) : data.servers);
             } else {
                 showNotice('配置响应异常，已保留当前列表');
                 return;
@@ -221,6 +247,8 @@ const App = () => {
             }
             writeCachedConfig(data);
             if (!options.skipUpdateCheck) checkForUpdate(false);
+            setIsLoading(false);
+            if (data.historyMode === 'paged') await loadPagedHistories();
         } catch(e) {
             console.error("读取配置失败", e);
             if (cachedConfig && Array.isArray(cachedConfig.servers)) {

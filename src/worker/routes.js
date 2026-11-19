@@ -127,6 +127,15 @@
       });
     }
 
+    if (url.pathname === '/api/history' && request.method === 'GET') {
+      const auth = this.requireAdmin(request, env);
+      if (auth) return auth;
+      if (!this.usesD1State(env)) return this.json({ error: 'D1 history unavailable' }, 404);
+      const cursor = Number(url.searchParams.get('cursor') || 0);
+      if (!Number.isSafeInteger(cursor) || cursor < 0) return this.json({ error: 'Invalid cursor' }, 400);
+      return this.d1HistoryResponse(env, cursor);
+    }
+
     if (url.pathname === '/api/config') {
       const auth = this.requireAdmin(request, env);
       if (auth) return auth;
