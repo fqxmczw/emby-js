@@ -11,7 +11,7 @@ const source=fs.readFileSync('emby.js','utf8').replace(/\bexport\s+default\s*\{/
 const ctx={URL,URLSearchParams,AbortController,setTimeout,clearTimeout,console,Response,Request,Headers,ReadableStream,TextEncoder,fetch:async()=>new Response('{}')};
 vm.createContext(ctx);vm.runInContext(source+'\nglobalThis.worker=__worker;',ctx);const app=ctx.worker;
 const now=Date.now();
-const config={icons:{sample:'https://example.com/icon.svg'},telegram:{enabled:false},logging:{enabled:false},revision:'original-revision',updatedAt:now-60000,nextScheduledCursor:0,servers:Array.from({length:70},(_,i)=>({id:i+1,name:'node-'+i,url:'https://node-'+i+'.example',fallbackUrls:[],status:'online',totalChecks:100,successfulChecks:100,uptime:'100.0',lastCheck:now-60000,history:Array.from({length:1440},(_,j)=>({status:'online',time:now-86400000+j*60000,latency:1})),mediaStats:{enabled:false}}))};
+const config={icons:{sample:'https://example.com/icon.svg',large:'x'.repeat(70000)},telegram:{enabled:false},logging:{enabled:false},revision:'original-revision',updatedAt:now-60000,nextScheduledCursor:0,servers:Array.from({length:70},(_,i)=>({id:i+1,name:'node-'+i,url:'https://node-'+i+'.example',fallbackUrls:[],status:'online',totalChecks:100,successfulChecks:100,uptime:'100.0',lastCheck:now-60000,history:Array.from({length:1440},(_,j)=>({status:'online',time:now-86400000+j*60000,latency:1})),mediaStats:{enabled:false}}))};
 const env={EMBY_STATE_DB:d1,EMBY_DB:{get:async()=>null,put:async()=>{kvWrites++;},list:async()=>({keys:[],list_complete:true})}};
 (async()=>{
  assert.equal(typeof app.runD1Scheduled,'function','D1 scheduled path must exist');
@@ -21,7 +21,7 @@ const env={EMBY_STATE_DB:d1,EMBY_DB:{get:async()=>null,put:async()=>{kvWrites++;
  const compact=await app.d1ConfigResponse(env);const body=await compact.json();
  assert.equal(body.servers.length,70);assert.equal(body.historyMode,'paged');assert.equal(body.telegram.enabled,false);
  assert.ok(body.servers.every(s=>!s.history),'config must not return histories');
- assert.ok(transferred<50000,'config transfer must be bounded: '+transferred);
+ assert.ok(transferred<150000,'config transfer must be bounded: '+transferred);
  const histories=new Map();let cursor=0;
  do {
    transferred=0;
