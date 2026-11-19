@@ -89,6 +89,24 @@
       return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : 0;
   },
 
+  isNewerRuntimeVersion(latest, current) {
+      if (!latest || latest === 'unknown' || latest === current) return false;
+      const a = String(latest).split('.').map(Number);
+      const b = String(current).split('.').map(Number);
+      if (!a.every(Number.isFinite) || !b.every(Number.isFinite)) return false;
+      for (let i = 0; i < Math.max(a.length, b.length); i += 1) {
+          if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0);
+      }
+      return false;
+  },
+
+  async fetchUpdateMetadata(env) {
+      const url = this.getUpdateRawUrl(env).replace(/\/emby\.js$/, '/src/app-meta.json');
+      const response = await fetch(url, { headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' } });
+      if (!response.ok) throw new Error('Update metadata HTTP ' + response.status);
+      return response.json();
+  },
+
   async maybeRunScheduledSelfUpdate(env) {
       if (!env || !env.EMBY_DB || !this.canSelfUpdate(env)) return { skipped: true, reason: 'disabled' };
 
@@ -111,16 +129,13 @@
           let latestVersion;
           const repo = this.getUpdateRepo(env);
           if (this.usesD1State(env) && repo.file === 'emby.js') {
-              const metaUrl = this.getUpdateRawUrl(env).replace(/\/emby\.js$/, '/src/app-meta.json');
-              const response = await fetch(metaUrl, { headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' } });
-              if (!response.ok) throw new Error('Update metadata HTTP ' + response.status);
-              const meta = await response.json();
+              const meta = await this.fetchUpdateMetadata(env);
               latestVersion = String(meta.updateChannels && meta.updateChannels.worker || meta.version || 'unknown');
           } else {
               latestSource = await this.fetchLatestWorkerSource(env);
               latestVersion = this.extractRuntimeVersion(latestSource, 'worker') || 'unknown';
           }
-          const updated = latestVersion !== 'unknown' && latestVersion !== currentVersion;
+          const updated = this.usesD1State(env) ? this.isNewerRuntimeVersion(latestVersion, currentVersion) : latestVersion !== 'unknown' && latestVersion !== currentVersion;
           if (updated) {
               latestSource = latestSource || await this.fetchLatestWorkerSource(env);
               if (this.extractRuntimeVersion(latestSource, 'worker') !== latestVersion) throw new Error('Update source and metadata disagree');

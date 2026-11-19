@@ -41,7 +41,7 @@ export default {
       if (publicShareHost && !this.isAllowedPublicSharePath(url.pathname)) {
         return new Response('Not Found', { status: 404 });
       }
-  
+
       if (url.pathname === '/manifest.webmanifest') {
         return this.json({
             name: 'Emby 服务器探针',
@@ -56,7 +56,7 @@ export default {
             ]
         });
       }
-  
+
       if (url.pathname === '/app-icon.svg') {
         return new Response(this.APP_ICON_SVG, {
             headers: {
@@ -65,11 +65,11 @@ export default {
             }
         });
       }
-  
+
       if (url.pathname === '/public') {
         return new Response('Link required', { status: 404, headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
       }
-  
+
       if (request.method === 'GET' && /^\/public\/[a-f0-9]{24}$/i.test(url.pathname)) {
         if (this.shouldBlockPublicShareAccess(request)) {
           return new Response('海外敏感内容，大陆ip禁止访问', { status: 403, headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
@@ -91,7 +91,7 @@ export default {
             }
         });
       }
-  
+
       if (url.pathname === '/api/public/share-token' && request.method === 'POST') {
         const auth = this.requireAdmin(request, env);
         if (auth) return auth;
@@ -110,7 +110,7 @@ export default {
         const publicUrl = baseUrl.replace(/\/$/, '') + '/public/' + token;
         return this.json({ ok: true, token, url: publicUrl, expiresAt });
       }
-  
+
       const publicTokenApiMatch = url.pathname.match(/^\/api\/public\/share-token\/([a-f0-9]{24})$/i);
       if (publicTokenApiMatch && request.method === 'DELETE') {
         const auth = this.requireAdmin(request, env);
@@ -118,13 +118,13 @@ export default {
         await this.deletePublicShareToken(env, publicTokenApiMatch[1]);
         return this.json({ ok: true });
       }
-  
+
       if (url.pathname === '/api/public/share-stats' && request.method === 'GET') {
         const auth = this.requireAdmin(request, env);
         if (auth) return auth;
         return this.json({ ok: true, items: await this.listPublicShareStats(env, url.origin || '') });
       }
-  
+
       if (url.pathname === '/api/card/share-token' && request.method === 'POST') {
         const auth = this.requireAdmin(request, env);
         if (auth) return auth;
@@ -141,7 +141,7 @@ export default {
         const cardUrl = baseUrl.replace(/\/$/, '') + '/card/' + token + '.svg';
         return this.json({ ok: true, token, url: cardUrl, expiresAt });
       }
-  
+
       const cardMatch = url.pathname.match(/^\/card\/([a-f0-9]{24})\.svg$/i);
       if (cardMatch && request.method === 'GET') {
         const tokenRecord = await this.getCardShareToken(env, cardMatch[1]);
@@ -157,11 +157,11 @@ export default {
             }
         });
       }
-  
+
       if (url.pathname === '/api/config') {
         const auth = this.requireAdmin(request, env);
         if (auth) return auth;
-  
+
         try {
             if (request.method === 'GET') {
                 if (this.usesD1State(env)) return this.d1ConfigResponse(env);
@@ -190,22 +190,22 @@ export default {
             return this.json({ ok: false, error: 'CONFIG_READ_FAILED' }, 500);
         }
       }
-  
+
       if (url.pathname === '/api/logging' && request.method === 'POST') {
         const auth = this.requireAdmin(request, env);
         if (auth) return auth;
-  
+
         const body = await request.json().catch(() => ({}));
         const currentConfig = await this.loadConfig(env);
         const nextConfig = await this.saveConfig(env, { ...currentConfig, logging: { enabled: Boolean(body.enabled) }, updatedAt: Date.now() });
         await this.appendRuntimeLog(env, 'info', 'logs.toggle', Boolean(body.enabled) ? '运行日志已开启' : '运行日志已关闭', {}, { force: true });
         return this.json({ ok: true, logging: nextConfig.logging || { enabled: false }, updatedAt: nextConfig.updatedAt, revision: nextConfig.revision });
       }
-  
+
       if (url.pathname === '/api/data/export' && request.method === 'GET') {
         const auth = this.requireStrictAdmin(request, env);
         if (auth) return auth;
-  
+
         const snapshot = await this.exportKvSnapshot(env);
         const fileName = 'emby-kv-snapshot-' + new Date(snapshot.exportedAt || Date.now()).toISOString().replace(/[:]/g, '-').replace(/\.\d{3}Z$/, 'Z') + '.json';
         await this.appendRuntimeLog(env, 'info', 'data.export', '导出迁移数据快照', {
@@ -220,11 +220,11 @@ export default {
             }
         });
       }
-  
+
       if (url.pathname === '/api/data/import' && request.method === 'POST') {
         const auth = this.requireStrictAdmin(request, env);
         if (auth) return auth;
-  
+
         try {
             const body = await request.json().catch(() => ({}));
             const snapshot = body && body.snapshot ? body.snapshot : body;
@@ -256,11 +256,11 @@ export default {
             return this.json({ ok: false, error: e && e.message ? e.message : 'Import failed' }, 400);
         }
       }
-  
+
       if (url.pathname === '/api/telegram/test' && request.method === 'POST') {
         const auth = this.requireAdmin(request, env);
         if (auth) return auth;
-  
+
         const body = await request.json().catch(() => ({}));
         const currentConfig = await this.loadConfig(env);
         const testConfig = this.sanitizeConfig({
@@ -271,11 +271,11 @@ export default {
         await this.appendRuntimeLog(env, result.ok ? 'info' : 'warn', 'telegram.test', result.ok ? 'Telegram 测试通知发送成功' : 'Telegram 测试通知发送失败', { status: result.status || 0, error: result.error || '' }, { config: testConfig });
         return this.json(result, result.ok ? 200 : 400);
       }
-  
+
       if (url.pathname === '/api/fetch-icons') {
         const auth = this.requireAdmin(request, env);
         if (auth) return auth;
-  
+
         try {
             const iconUrl = this.parsePublicHttpUrl(url.searchParams.get('url'));
             if (!iconUrl) return new Response('Invalid URL', { status: 400 });
@@ -284,7 +284,7 @@ export default {
             });
             if (!r.ok) return new Response('{}', { status: 502, headers: { 'Content-Type': 'application/json' } });
             let txt = await r.text();
-  
+
             try {
                 txt = txt.replace(/，/g, ',').replace(/“|”/g, '"').replace(/'/g, '"').replace(/,(\s*[}\\]])/g, '$1').trim();
                 const parsedIcons = this.extractIcons(JSON.parse(txt));
@@ -295,7 +295,7 @@ export default {
             }
         } catch(e) { return new Response('{}', { status: 500 }); }
       }
-  
+
       if (url.pathname === '/proxy-img') {
           try {
               const target = this.parsePublicHttpUrl(url.searchParams.get('url'));
@@ -311,11 +311,11 @@ export default {
               return new Response('Error Proxying Image', { status: 500 });
           }
       }
-  
+
       if (url.pathname === '/api/logs') {
         const auth = this.requireAdmin(request, env);
         if (auth) return auth;
-  
+
         if (request.method === 'GET') {
             const logs = await this.readRuntimeLogs(env);
             if (url.searchParams.get('format') === 'text') {
@@ -334,21 +334,21 @@ export default {
             return this.json({ ok: true, logs: await this.readRuntimeLogs(env) });
         }
       }
-  
+
       if (url.pathname === '/api/ping-all' && request.method === 'POST') {
         const auth = this.requireAdmin(request, env);
         if (auth) return auth;
-  
+
         const requestBody = await request.json().catch(() => ({}));
         const currentConfig = await this.loadConfig(env);
         const updatedConfig = await this.runProbeLogic(env, currentConfig, { forceMedia: Boolean(requestBody.forceMedia), refreshLastPlayed: Boolean(requestBody.refreshLastPlayed), cursor: Number(requestBody.cursor) || 0, source: 'manual' });
         return this.json({ ...updatedConfig, notifyEnabled: this.isTelegramEnabled(env, updatedConfig) });
       }
-  
+
       if (url.pathname === '/api/ping-single' && request.method === 'POST') {
         const auth = this.requireAdmin(request, env);
         if (auth) return auth;
-  
+
         const requestBody = await request.json().catch(() => ({}));
         const serverId = requestBody.serverId;
         if (serverId === undefined || serverId === null || serverId === '') return this.json({ ok: false, error: 'Missing serverId' }, 400);
@@ -367,20 +367,22 @@ export default {
           return this.json({ ok: false, error: message }, 500);
         }
       }
-  
+
       if (url.pathname === '/api/update/check' && request.method === 'GET') {
         const auth = this.requireStrictAdmin(request, env);
         if (auth) return auth;
-  
+
         try {
             const capability = await this.getRuntimeUpdateCapability(env);
             const currentVersion = this.getCurrentRuntimeVersion(env, capability.mode);
             const logConfig = await this.loadConfig(env);
             await this.appendRuntimeLog(env, 'info', 'update.check', '开始检查程序更新', {}, { config: logConfig });
-            const latestSource = await this.fetchLatestWorkerSource(env);
-            const latestVersion = this.extractRuntimeVersion(latestSource, capability.mode) || 'unknown';
-            const hasUpdate = latestVersion !== 'unknown' && latestVersion !== currentVersion;
-            const releaseNotes = this.extractUpdateNotes(latestSource);
+            const useMetadata = this.usesD1State(env) && this.getUpdateRepo(env).file === 'emby.js';
+            const metadata = useMetadata ? await this.fetchUpdateMetadata(env) : null;
+            const latestSource = metadata ? '' : await this.fetchLatestWorkerSource(env);
+            const latestVersion = metadata ? String(metadata.updateChannels && metadata.updateChannels.worker || metadata.version || 'unknown') : this.extractRuntimeVersion(latestSource, capability.mode) || 'unknown';
+            const hasUpdate = this.usesD1State(env) ? this.isNewerRuntimeVersion(latestVersion, currentVersion) : latestVersion !== 'unknown' && latestVersion !== currentVersion;
+            const releaseNotes = metadata ? (Array.isArray(metadata.updateNotes) ? metadata.updateNotes : []) : this.extractUpdateNotes(latestSource);
             await this.appendRuntimeLog(env, 'info', 'update.check.done', '程序更新检查完成', { currentVersion, latestVersion, hasUpdate }, { config: logConfig });
             return this.json({
                 currentVersion,
@@ -414,11 +416,11 @@ export default {
             }, 502);
         }
       }
-  
+
       if (url.pathname === '/api/update/apply' && request.method === 'POST') {
         const auth = this.requireStrictAdmin(request, env);
         if (auth) return auth;
-  
+
         const capability = await this.getRuntimeUpdateCapability(env);
         const currentVersion = this.getCurrentRuntimeVersion(env, capability.mode);
         if (!capability.canUpdate) {
@@ -431,8 +433,8 @@ export default {
             const latestVersion = this.extractRuntimeVersion(latestSource, capability.mode);
             if (!latestVersion) return this.json({ ok: false, error: 'Latest source has no runtime update version' }, 422);
             const releaseNotes = this.extractUpdateNotes(latestSource);
-            if (latestVersion === currentVersion) return this.json({ ok: true, updated: false, version: currentVersion, releaseNotes, updateMode: capability.mode });
-  
+            if (latestVersion === currentVersion || (this.usesD1State(env) && !this.isNewerRuntimeVersion(latestVersion, currentVersion))) return this.json({ ok: true, updated: false, version: currentVersion, releaseNotes, updateMode: capability.mode });
+
             if (capability.mode === 'docker') {
                 const queued = await env.DOCKER_SELF_UPDATER.scheduleSelfUpdate({ latestVersion });
                 if (!queued || queued.ok === false) {
@@ -456,7 +458,7 @@ export default {
                     alreadyRunning: Boolean(queued.alreadyRunning)
                 });
             }
-  
+
             await this.deployWorkerSource(env, latestSource);
             await this.appendRuntimeLog(env, 'info', 'update.apply.done', '程序更新部署完成', { previousVersion: currentVersion, version: latestVersion }, { config: logConfig });
             return this.json({ ok: true, updated: true, previousVersion: currentVersion, version: latestVersion, releaseNotes, updateMode: 'worker' });
@@ -465,10 +467,10 @@ export default {
             return this.json({ ok: false, error: e.message || 'Update failed' }, 502);
         }
       }
-  
+
       return new Response(HTML_CONTENT, { headers: { 'Content-Type': 'text/html;charset=utf-8' } });
     },
-  
+
     async scheduled(event, env, ctx) {
         if (this.usesD1State(env)) {
             ctx.waitUntil(this.runD1Scheduled(env).then(result => console.log(JSON.stringify({ event: 'probe.scheduled.done', ...result }))).catch(error => console.error(JSON.stringify({ event: 'probe.scheduled.error', error: error.message }))));
@@ -1101,20 +1103,20 @@ export default {
             file: env.UPDATE_FILE || this.UPDATE_FILE
         };
     },
-  
+
     getUpdateRawUrl(env) {
         const repo = this.getUpdateRepo(env);
         return 'https://raw.githubusercontent.com/' + encodeURIComponent(repo.owner) + '/' + encodeURIComponent(repo.repo) + '/' + encodeURIComponent(repo.branch) + '/' + repo.file.split('/').map(encodeURIComponent).join('/');
     },
-  
+
     normalizeRuntimeUpdateMode(mode) {
         return mode === 'docker' ? 'docker' : 'worker';
     },
-  
+
     getRuntimeUpdateMode(env) {
         return this.normalizeRuntimeUpdateMode(this.isDockerRuntime(env) ? 'docker' : 'worker');
     },
-  
+
     getRuntimeVersionMap() {
         const versions = this.APP_RUNTIME_VERSIONS;
         const fallback = this.APP_VERSION || '';
@@ -1126,13 +1128,13 @@ export default {
             docker: docker || fallback
         };
     },
-  
+
     getCurrentRuntimeVersion(env, mode) {
         const runtimeMode = this.normalizeRuntimeUpdateMode(mode || this.getRuntimeUpdateMode(env));
         const versions = this.getRuntimeVersionMap();
         return runtimeMode === 'docker' ? versions.docker : versions.worker;
     },
-  
+
     getMissingUpdateEnv(env) {
         const missing = [];
         if (!['1', 'true', 'yes', 'on'].includes(String(env.UPDATE_ENABLED || '').toLowerCase())) missing.push('UPDATE_ENABLED');
@@ -1141,13 +1143,13 @@ export default {
         if (!env.CF_API_TOKEN) missing.push('CF_API_TOKEN');
         return missing;
     },
-  
+
     canSelfUpdate(env) { return this.getMissingUpdateEnv(env).length === 0; },
-  
+
     isDockerRuntime(env) {
         return Boolean(env && env.DOCKER_SELF_UPDATER && typeof env.DOCKER_SELF_UPDATER.getCapability === 'function');
     },
-  
+
     async getRuntimeUpdateCapability(env) {
         if (this.isDockerRuntime(env)) {
             const capability = await env.DOCKER_SELF_UPDATER.getCapability();
@@ -1169,18 +1171,36 @@ export default {
             image: ''
         };
     },
-  
+
     UPDATE_CHECK_KV_KEY: 'last_update_check',
     UPDATE_CHECK_INTERVAL_MS: 12 * 60 * 60 * 1000,
-  
+
     parseUpdateCheckTimestamp(value) {
         const timestamp = Number(value);
         return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : 0;
     },
-  
+
+    isNewerRuntimeVersion(latest, current) {
+        if (!latest || latest === 'unknown' || latest === current) return false;
+        const a = String(latest).split('.').map(Number);
+        const b = String(current).split('.').map(Number);
+        if (!a.every(Number.isFinite) || !b.every(Number.isFinite)) return false;
+        for (let i = 0; i < Math.max(a.length, b.length); i += 1) {
+            if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0);
+        }
+        return false;
+    },
+
+    async fetchUpdateMetadata(env) {
+        const url = this.getUpdateRawUrl(env).replace(/\/emby\.js$/, '/src/app-meta.json');
+        const response = await fetch(url, { headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' } });
+        if (!response.ok) throw new Error('Update metadata HTTP ' + response.status);
+        return response.json();
+    },
+
     async maybeRunScheduledSelfUpdate(env) {
         if (!env || !env.EMBY_DB || !this.canSelfUpdate(env)) return { skipped: true, reason: 'disabled' };
-  
+
         const checkedAt = Date.now();
         const currentVersion = this.getCurrentRuntimeVersion(env, 'worker');
         let lastCheckedAt = 0;
@@ -1190,26 +1210,23 @@ export default {
             console.log('[updater] last_update_check read failed:', e && e.message ? e.message : String(e));
             return { skipped: true, reason: 'kv-read-failed' };
         }
-  
+
         if (lastCheckedAt && checkedAt - lastCheckedAt < this.UPDATE_CHECK_INTERVAL_MS) {
             return { skipped: true, reason: 'throttled', lastCheckedAt, nextCheckAt: lastCheckedAt + this.UPDATE_CHECK_INTERVAL_MS };
         }
-  
+
         try {
             let latestSource;
             let latestVersion;
             const repo = this.getUpdateRepo(env);
             if (this.usesD1State(env) && repo.file === 'emby.js') {
-                const metaUrl = this.getUpdateRawUrl(env).replace(/\/emby\.js$/, '/src/app-meta.json');
-                const response = await fetch(metaUrl, { headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' } });
-                if (!response.ok) throw new Error('Update metadata HTTP ' + response.status);
-                const meta = await response.json();
+                const meta = await this.fetchUpdateMetadata(env);
                 latestVersion = String(meta.updateChannels && meta.updateChannels.worker || meta.version || 'unknown');
             } else {
                 latestSource = await this.fetchLatestWorkerSource(env);
                 latestVersion = this.extractRuntimeVersion(latestSource, 'worker') || 'unknown';
             }
-            const updated = latestVersion !== 'unknown' && latestVersion !== currentVersion;
+            const updated = this.usesD1State(env) ? this.isNewerRuntimeVersion(latestVersion, currentVersion) : latestVersion !== 'unknown' && latestVersion !== currentVersion;
             if (updated) {
                 latestSource = latestSource || await this.fetchLatestWorkerSource(env);
                 if (this.extractRuntimeVersion(latestSource, 'worker') !== latestVersion) throw new Error('Update source and metadata disagree');
@@ -1240,7 +1257,7 @@ export default {
             }
         }
     },
-  
+
     async fetchLatestWorkerSource(env) {
         const sourceUrl = this.getUpdateRawUrl(env) + '?t=' + Date.now();
         const response = await fetch(sourceUrl, {
@@ -1256,7 +1273,7 @@ export default {
         if (!this.isSafeWorkerSource(source)) throw new Error('Latest source validation failed');
         return source;
     },
-  
+
     extractAppVersion(source) {
         const text = String(source || '');
         const exportMatch = text.match(/export\s+default\s*\{[\s\S]*?APP_VERSION:\s*['"]([^'"]+)['"]/);
@@ -1264,7 +1281,7 @@ export default {
         const match = text.match(/APP_VERSION:\s*['"]([^'"]+)['"]/);
         return match ? match[1] : '';
     },
-  
+
     extractRuntimeVersion(source, mode) {
         const runtimeMode = this.normalizeRuntimeUpdateMode(mode);
         const text = String(source || '');
@@ -1275,7 +1292,7 @@ export default {
         }
         return this.extractAppVersion(text);
     },
-  
+
     extractUpdateNotes(source) {
         const match = String(source || '').match(/APP_UPDATE_NOTES:\s*\[([\s\S]*?)\]\s*,/);
         if (!match) return [];
@@ -1287,17 +1304,17 @@ export default {
         }
         return notes;
     },
-  
+
     isSafeWorkerSource(source) {
         const text = String(source || '');
         return text.length > 10000 && text.length < 5 * 1024 * 1024 && text.includes('Emby 集群探针') && text.includes('export default') && text.includes('HTML_CONTENT') && Boolean(this.extractAppVersion(text));
     },
-  
+
     async deployWorkerSource(env, source) {
         const form = new FormData();
         form.append('metadata', JSON.stringify({ main_module: 'emby.js' }));
         form.append('emby.js', new Blob([source], { type: 'application/javascript+module' }), 'emby.js');
-  
+
         const endpoint = 'https://api.cloudflare.com/client/v4/accounts/' + encodeURIComponent(env.CF_ACCOUNT_ID) + '/workers/scripts/' + encodeURIComponent(env.CF_WORKER_NAME) + '/content';
         const response = await fetch(endpoint, { method: 'PUT', headers: { 'Authorization': 'Bearer ' + env.CF_API_TOKEN }, body: form });
         const detail = await response.text();

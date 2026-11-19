@@ -346,10 +346,12 @@
           const currentVersion = this.getCurrentRuntimeVersion(env, capability.mode);
           const logConfig = await this.loadConfig(env);
           await this.appendRuntimeLog(env, 'info', 'update.check', '开始检查程序更新', {}, { config: logConfig });
-          const latestSource = await this.fetchLatestWorkerSource(env);
-          const latestVersion = this.extractRuntimeVersion(latestSource, capability.mode) || 'unknown';
-          const hasUpdate = latestVersion !== 'unknown' && latestVersion !== currentVersion;
-          const releaseNotes = this.extractUpdateNotes(latestSource);
+          const useMetadata = this.usesD1State(env) && this.getUpdateRepo(env).file === 'emby.js';
+          const metadata = useMetadata ? await this.fetchUpdateMetadata(env) : null;
+          const latestSource = metadata ? '' : await this.fetchLatestWorkerSource(env);
+          const latestVersion = metadata ? String(metadata.updateChannels && metadata.updateChannels.worker || metadata.version || 'unknown') : this.extractRuntimeVersion(latestSource, capability.mode) || 'unknown';
+          const hasUpdate = this.usesD1State(env) ? this.isNewerRuntimeVersion(latestVersion, currentVersion) : latestVersion !== 'unknown' && latestVersion !== currentVersion;
+          const releaseNotes = metadata ? (Array.isArray(metadata.updateNotes) ? metadata.updateNotes : []) : this.extractUpdateNotes(latestSource);
           await this.appendRuntimeLog(env, 'info', 'update.check.done', '程序更新检查完成', { currentVersion, latestVersion, hasUpdate }, { config: logConfig });
           return this.json({
               currentVersion,
@@ -400,7 +402,7 @@
           const latestVersion = this.extractRuntimeVersion(latestSource, capability.mode);
           if (!latestVersion) return this.json({ ok: false, error: 'Latest source has no runtime update version' }, 422);
           const releaseNotes = this.extractUpdateNotes(latestSource);
-          if (latestVersion === currentVersion) return this.json({ ok: true, updated: false, version: currentVersion, releaseNotes, updateMode: capability.mode });
+          if (latestVersion === currentVersion || (this.usesD1State(env) && !this.isNewerRuntimeVersion(latestVersion, currentVersion))) return this.json({ ok: true, updated: false, version: currentVersion, releaseNotes, updateMode: capability.mode });
 
           if (capability.mode === 'docker') {
               const queued = await env.DOCKER_SELF_UPDATER.scheduleSelfUpdate({ latestVersion });

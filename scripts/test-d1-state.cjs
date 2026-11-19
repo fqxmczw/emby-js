@@ -50,6 +50,7 @@ const env={EMBY_STATE_DB:d1,EMBY_DB:{get:async()=>null,put:async()=>{kvWrites++;
  transferred=0;await app.runD1Scheduled(env);assert.equal(notified,4);assert.ok(transferred<30000,'notifications must not fetch full histories');
  assert.ok(JSON.parse(sqlite.prepare("SELECT data FROM emby_nodes WHERE id='1'").get().data).offlineAlertSentAt>0);
  const scheduledKvWrites=kvWrites;
+ assert.equal(app.isNewerRuntimeVersion('2026.05.31.4',app.APP_VERSION),false);assert.equal(app.isNewerRuntimeVersion('2026.11.19.2',app.APP_VERSION),true);
  const fetched=[];ctx.fetch=async url=>{fetched.push(url);return new Response(JSON.stringify({updateChannels:{worker:app.APP_VERSION}}));};
  const updaterEnv={...env,UPDATE_ENABLED:'1',CF_ACCOUNT_ID:'test',CF_API_TOKEN:'test',CF_WORKER_NAME:'test'};
  const checked=await app.maybeRunScheduledSelfUpdate(updaterEnv);assert.equal(checked.updated,false);assert.equal(fetched.length,1);assert.ok(fetched[0].endsWith('/src/app-meta.json'),'unchanged version must not download the Worker bundle');
